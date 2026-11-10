@@ -1,6 +1,6 @@
 # Floater
 
-Floats the image on your clipboard in a frameless, draggable, resizable, always-on-top window on the current desktop.
+Floats the image (or animated GIF) on your clipboard in a frameless, draggable, resizable, always-on-top window on the current desktop.
 
 ![Floater pinning an image above another window](docs/screenshot.jpg)
 
@@ -11,7 +11,10 @@ git clone https://github.com/tomatosource/floater && cd floater
 ./install.sh   # needs Xcode command line tools; installs /Applications/Floater.app
 ```
 
-With an image on your clipboard, open Floater. Click it and press ⌘Q to close.
+With an image or GIF on your clipboard, open Floater. Click it and press ⌘Q to close.
+
+To flip between two layouts (say, small in a corner and big beside your editor): place it, hover
+and double-click **A**; move/resize it, double-click **B**. Now click A or B to snap between them.
 
 ## Features
 
@@ -21,9 +24,17 @@ With an image on your clipboard, open Floater. Click it and press ⌘Q to close.
 - Not in Cmd+Tab or the Dock (`LSUIElement`). Click the image to focus, Cmd+Q to quit.
 - Drag the image to move. Drag any corner to resize (aspect ratio kept). Only the bottom-right
   corner shows a grip; the other corners are invisible hot zones with a resize cursor.
-- On hover, buttons in the top-right corner: copy the image to the clipboard, and a ghost that
-  toggles image transparency (100% / 40%; the controls stay opaque). Icons are
-  [Lucide](https://lucide.dev) SVGs embedded in `Icon`.
+- Animated GIFs play — copied GIF data (e.g. from a browser) or a `.gif` file copied in Finder.
+- On hover, a strip of buttons in the top-right corner, left to right:
+  - **A** / **B** — double-click to save the window's current position and size, click to snap
+    back there (animated; a different-shaped image keeps the saved centre and width). Dimmed until
+    saved; slots persist across launches (`slotA` / `slotB` defaults).
+  - **Eraser** replaces the image with a random photo from [Lorem Picsum](https://picsum.photos)
+    (Unsplash photos, free to use, no API key); the window keeps its centre and area.
+  - **Copy** the image to the clipboard (GIFs keep their animation).
+  - **Ghost** toggles image transparency (100% / 40%; the controls stay opaque).
+
+  Icons are [Lucide](https://lucide.dev) SVGs embedded in `Icon`.
 
 ## Build
 
@@ -38,7 +49,8 @@ With an image on your clipboard, open Floater. Click it and press ⌘Q to close.
 `--restore`, so the window comes back at the same position and size showing the same image —
 the user may have it placed somewhere deliberately and their clipboard has likely moved on.
 
-The app saves its current image to `~/Library/Application Support/Floater/last.png` and its window
+The app saves its current image to `~/Library/Application Support/Floater/last.png` (or `last.gif`
+for a GIF; `--restore` uses whichever is newer) and its window
 frame to the `lastFrame` user default (bundle `com.tomatosource.floater`) every time it shows,
 moves or resizes. `--restore` reads these instead of the clipboard. Keep this working when
 changing how windows are created.

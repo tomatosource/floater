@@ -22,15 +22,46 @@ final class ImageView: NSView {
         didSet { needsDisplay = true; window?.invalidateShadow() }
     }
 
+    // Set for animated GIFs: the rep whose current frame is drawn and advanced on a timer.
+    private var animatedRep: NSBitmapImageRep?
+    private var frameCount = 1
+
     init(image: NSImage) {
         self.image = image
         super.init(frame: .zero)
+        if let rep = image.representations.first as? NSBitmapImageRep,
+           let count = rep.value(forProperty: .frameCount) as? Int, count > 1 {
+            animatedRep = rep
+            frameCount = count
+            scheduleNextFrame()
+        }
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
     override func draw(_ dirtyRect: NSRect) {
-        image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: imageOpacity)
+        if let rep = animatedRep {
+            rep.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: imageOpacity,
+                     respectFlipped: true, hints: nil)
+        } else {
+            image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: imageOpacity)
+        }
+    }
+
+    private func scheduleNextFrame() {
+        guard let rep = animatedRep else { return }
+        // Like browsers, treat near-zero frame delays as 0.1s.
+        var delay = (rep.value(forProperty: .currentFrameDuration) as? Double) ?? 0.1
+        if delay < 0.02 { delay = 0.1 }
+        Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            // Stop once the window has closed (a new image replaces this view).
+            guard let self, self.window != nil, let rep = self.animatedRep else { return }
+            let current = (rep.value(forProperty: .currentFrame) as? Int) ?? 0
+            rep.setProperty(.currentFrame, withValue: (current + 1) % self.frameCount)
+            self.needsDisplay = true
+            self.window?.invalidateShadow()
+            self.scheduleNextFrame()
+        }
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -86,6 +117,9 @@ final class ResizeHandle: NSView {
 
     override func resetCursorRects() {
         var cursor = NSCursor.crosshair
+        // NSCursor.frameResize needs the macOS 15 SDK (Swift 6 / Xcode 16+);
+        // older toolchains (e.g. Xcode 14) fall back to the crosshair.
+        #if compiler(>=6.0)
         if #available(macOS 15, *) {
             let pos: NSCursor.FrameResizePosition = switch corner {
             case .topLeft: .topLeft
@@ -95,6 +129,7 @@ final class ResizeHandle: NSView {
             }
             cursor = .frameResize(position: pos, directions: .all)
         }
+        #endif
         addCursorRect(bounds, cursor: cursor)
     }
 
@@ -141,6 +176,7 @@ enum Icon {
     static let ghost = #"<path d="M15 10v1"/><path d="M7.528 20.472a1.6 1.6 0 012.277 0l1.057 1.056a1.6 1.6 0 002.276 0l1.057-1.056a1.6 1.6 0 012.277 0l1.114 1.114a1.4 1.4 0 002.414-1V10a8 8 0 00-16 0v10.586a1.4 1.4 0 002.414 1z"/><path d="M9 10v1"/>"#
     static let copy = #"<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>"#
     static let check = #"<path d="M20 6 9 17l-5-5"/>"#
+    static let eraser = #"<path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.828 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21"/><path d="m5.082 11.09 8.828 8.828"/>"#
 
     static func image(_ body: String, size: CGFloat) -> NSImage? {
         let svg = #"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"# + body + "</svg>"
@@ -152,13 +188,19 @@ enum Icon {
 
 // MARK: - Ghost buttons (shown on hover)
 
+// Shows an icon, or a letter when `icon` is nil. With `doubleAction`, a single click waits out the
+// double-click interval so a double-click doesn't fire the single-click action first.
 final class GhostButton: NSView {
-    var icon: String { didSet { needsDisplay = true } }
+    var icon: String? { didSet { needsDisplay = true } }
+    var label: String? { didSet { needsDisplay = true } }
     var iconAlpha: CGFloat = 1 { didSet { needsDisplay = true } }
     let action: (GhostButton) -> Void
+    var doubleAction: ((GhostButton) -> Void)?
+    private var pendingClick: DispatchWorkItem?
 
-    init(icon: String, tooltip: String, action: @escaping (GhostButton) -> Void) {
+    init(icon: String?, label: String? = nil, tooltip: String, action: @escaping (GhostButton) -> Void) {
         self.icon = icon
+        self.label = label
         self.action = action
         super.init(frame: .zero)
         toolTip = tooltip
@@ -176,13 +218,32 @@ final class GhostButton: NSView {
         circle.lineWidth = 1
         circle.stroke()
 
-        let side: CGFloat = 18
-        Icon.image(icon, size: side)?.draw(
-            in: NSRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side),
-            from: .zero, operation: .sourceOver, fraction: iconAlpha)
+        if let icon {
+            let side: CGFloat = 18
+            Icon.image(icon, size: side)?.draw(
+                in: NSRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side),
+                from: .zero, operation: .sourceOver, fraction: iconAlpha)
+        } else if let label {
+            let text = NSAttributedString(string: label, attributes: [
+                .font: NSFont.systemFont(ofSize: 15, weight: .semibold),
+                .foregroundColor: NSColor.white.withAlphaComponent(iconAlpha),
+            ])
+            let s = text.size()
+            text.draw(at: NSPoint(x: bounds.midX - s.width / 2, y: bounds.midY - s.height / 2))
+        }
     }
 
-    override func mouseDown(with event: NSEvent) { action(self) }
+    override func mouseDown(with event: NSEvent) {
+        guard let doubleAction else { return action(self) }
+        pendingClick?.cancel()
+        if event.clickCount >= 2 { return doubleAction(self) }
+        let click = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.action(self)
+        }
+        pendingClick = click
+        DispatchQueue.main.asyncAfter(deadline: .now() + NSEvent.doubleClickInterval, execute: click)
+    }
 
     // Briefly swap the icon to confirm an action.
     func flash(_ temporary: String) {
@@ -192,30 +253,86 @@ final class GhostButton: NSView {
     }
 }
 
+// Saved A/B window frames, kept across launches.
+enum Slots {
+    static func key(_ name: String) -> String { "slot\(name)" }
+
+    static func load(_ name: String) -> NSRect? {
+        guard let frame = UserDefaults.standard.string(forKey: key(name)).map(NSRectFromString),
+              frame.width > 0, frame.height > 0 else { return nil }
+        return frame
+    }
+
+    static func save(_ name: String, frame: NSRect) {
+        UserDefaults.standard.set(NSStringFromRect(frame), forKey: key(name))
+    }
+}
+
+// MARK: - Random photos (Lorem Picsum: random Unsplash photos, free to use, no API key)
+
+enum RandomPhoto {
+    // Redirects to a random photo at this size.
+    static let url = URL(string: "https://picsum.photos/1600/1067")!
+
+    // Calls back on the main queue.
+    static func fetch(completion: @escaping (NSImage?) -> Void) {
+        URLSession.shared.dataTask(with: url) { data, response, _ in
+            let ok = (response as? HTTPURLResponse)?.statusCode == 200
+            let image = ok ? data.flatMap(NSImage.init(data:)) : nil
+            DispatchQueue.main.async { completion(image) }
+        }.resume()
+    }
+}
+
+// MARK: - GIFs (kept as their original bytes so they stay animated when saved and copied)
+
+let gifType = NSPasteboard.PasteboardType("com.compuserve.gif")
+
+// GIF bytes on the pasteboard: copied GIF data (e.g. from a browser), or a copied .gif file (Finder).
+func pasteboardGIF(_ pb: NSPasteboard) -> Data? {
+    if let data = pb.data(forType: gifType) { return data }
+    let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]
+    guard let url = urls?.first, url.pathExtension.lowercased() == "gif" else { return nil }
+    return try? Data(contentsOf: url)
+}
+
 // MARK: - Saved state (last image + window frame, for `--restore` relaunches)
 
 enum SavedState {
     static let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Floater")
     static let imageURL = dir.appendingPathComponent("last.png")
+    static let gifURL = dir.appendingPathComponent("last.gif")
     static let frameKey = "lastFrame"
 
-    static func save(image: NSImage) {
+    // GIFs are saved as last.gif, anything else as last.png; the other file is removed.
+    static func save(image: NSImage, gif: Data?) {
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        if let gif {
+            try? gif.write(to: gifURL)
+            try? FileManager.default.removeItem(at: imageURL)
+            return
+        }
         guard let tiff = image.tiffRepresentation,
               let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return }
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try? png.write(to: imageURL)
+        try? FileManager.default.removeItem(at: gifURL)
     }
 
     static func save(frame: NSRect) {
         UserDefaults.standard.set(NSStringFromRect(frame), forKey: frameKey)
     }
 
-    static func load() -> (image: NSImage, frame: NSRect)? {
-        guard let image = NSImage(contentsOf: imageURL),
+    // Uses whichever of last.png / last.gif is newer, in case something outside the app wrote one.
+    static func load() -> (image: NSImage, gif: Data?, frame: NSRect)? {
+        func modified(_ url: URL) -> Date {
+            (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+        }
+        let gif = modified(gifURL) > modified(imageURL) ? try? Data(contentsOf: gifURL) : nil
+        guard let image = gif.flatMap(NSImage.init(data:)) ?? NSImage(contentsOf: imageURL),
               let frame = UserDefaults.standard.string(forKey: frameKey).map(NSRectFromString),
               frame.width > 0, frame.height > 0 else { return nil }
-        return (image, frame)
+        return (image, gif, frame)
     }
 }
 
@@ -228,7 +345,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         closeOtherInstances()
         setupMenu()
         if CommandLine.arguments.contains("--restore"), let state = SavedState.load() {
-            show(image: state.image, frame: state.frame)
+            show(image: state.image, gif: state.gif, frame: state.frame)
         } else {
             showClipboard()
         }
@@ -260,7 +377,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showClipboard() {
-        guard let image = NSImage(pasteboard: .general), image.isValid else {
+        let gif = pasteboardGIF(.general)
+        guard let image = gif.flatMap(NSImage.init(data:)) ?? NSImage(pasteboard: .general), image.isValid else {
             notify("No image on clipboard")
             NSApp.terminate(nil)
             return
@@ -284,12 +402,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let frame = NSRect(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2,
                            width: size.width, height: size.height)
-        show(image: image, frame: frame)
+        show(image: image, gif: gif, frame: frame)
     }
 
-    func show(image: NSImage, frame: NSRect) {
+    func show(image: NSImage, gif: Data?, frame: NSRect) {
         window?.close()
-        SavedState.save(image: image)
+        SavedState.save(image: image, gif: gif)
         SavedState.save(frame: frame)
 
         let size = frame.size
@@ -324,12 +442,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             b.iconAlpha = content.imageOpacity < 1 ? 0.4 : 1
         }
         let copy = GhostButton(icon: Icon.copy, tooltip: "Copy image") { b in
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.writeObjects([image])
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            if let gif {
+                // GIF bytes for apps that take animation, TIFF (first frame) for the rest.
+                pb.declareTypes([gifType, .tiff], owner: nil)
+                pb.setData(gif, forType: gifType)
+                pb.setData(image.tiffRepresentation, forType: .tiff)
+            } else {
+                pb.writeObjects([image])
+            }
             b.flash(Icon.check)
         }
-        // Right-to-left from the top-right corner.
-        for (i, button) in [ghost, copy].enumerated() {
+        // Dimmed while a photo loads; a failed fetch beeps.
+        let photo = GhostButton(icon: Icon.eraser, tooltip: "Replace with a random photo") { [weak self, weak w] b in
+            guard b.iconAlpha == 1 else { return }
+            b.iconAlpha = 0.4
+            RandomPhoto.fetch { photo in
+                b.iconAlpha = 1
+                guard let self, let w, let photo else { NSSound.beep(); return }
+                // Same centre and area as the current window, reshaped to the photo's aspect ratio.
+                let f = w.frame, a = photo.size.width / photo.size.height
+                let nw = (f.width * f.height * a).squareRoot(), nh = nw / a
+                self.show(image: photo, gif: nil,
+                          frame: NSRect(x: f.midX - nw / 2, y: f.midY - nh / 2, width: nw, height: nh))
+            }
+        }
+        // A/B: double-click saves the window frame, click snaps back to it. Dimmed until saved.
+        let slots = ["B", "A"].map { name in
+            let button = GhostButton(icon: nil, label: name,
+                                     tooltip: "Click: snap to \(name). Double-click: save this position as \(name).") { [weak w] _ in
+                guard let w else { return }
+                guard let saved = Slots.load(name) else { NSSound.beep(); return }
+                // Keep the saved centre and width; fit the height to this image's aspect ratio.
+                let h = saved.width / aspect
+                w.setFrame(NSRect(x: saved.minX, y: saved.midY - h / 2, width: saved.width, height: h),
+                           display: true, animate: true)
+            }
+            button.iconAlpha = Slots.load(name) == nil ? 0.4 : 1
+            button.doubleAction = { [weak w] b in
+                guard let w else { return }
+                Slots.save(name, frame: w.frame)
+                b.iconAlpha = 1
+                b.flash(Icon.check)
+            }
+            return button
+        }
+        // Right-to-left from the top-right corner: A B photo copy ghost.
+        for (i, button) in ([ghost, copy, photo] + slots).enumerated() {
             let x = size.width - buttonInset - CGFloat(i + 1) * buttonSize - CGFloat(i) * 6
             button.frame = NSRect(x: x, y: size.height - buttonSize - buttonInset,
                                   width: buttonSize, height: buttonSize)
