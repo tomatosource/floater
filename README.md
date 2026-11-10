@@ -8,7 +8,7 @@ Floats the image on your clipboard in a frameless, always-on-top window on the c
 - Not in Cmd+Tab or the Dock (`LSUIElement`). Click the image to focus, Cmd+Q to quit.
 - Drag the image to move. Drag the bottom-right grip to resize (aspect ratio kept).
 - On hover, buttons in the top-right corner: copy the image to the clipboard, and a ghost that
-  toggles image transparency (100% / 25%; the controls stay opaque). Icons are
+  toggles image transparency (100% / 40%; the controls stay opaque). Icons are
   [Lucide](https://lucide.dev) SVGs embedded in `Icon`.
 
 ## Build

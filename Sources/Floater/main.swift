@@ -292,7 +292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Only the image fades, so grips and buttons stay fully visible.
         let ghost = GhostButton(icon: Icon.ghost, tooltip: "Toggle transparency") { [unowned content] b in
-            content.imageOpacity = content.imageOpacity < 1 ? 1 : 0.25
+            content.imageOpacity = content.imageOpacity < 1 ? 1 : 0.4
             b.iconAlpha = content.imageOpacity < 1 ? 0.4 : 1
         }
         let copy = GhostButton(icon: Icon.copy, tooltip: "Copy image") { b in
