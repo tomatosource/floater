@@ -11,8 +11,7 @@ git clone https://github.com/tomatosource/floater && cd floater
 ./build.sh --install   # needs Xcode command line tools; installs /Applications/Floater.app
 ```
 
-Copy an image (e.g. a screenshot with ⌃⇧⌘4), then launch Floater from Spotlight/Raycast or bind it to
-a hotkey. Click it and press ⌘Q to close.
+With an image on your clipboard, open Floater. Click it and press ⌘Q to close.
 
 ## Features
 
