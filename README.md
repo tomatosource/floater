@@ -8,7 +8,7 @@ Floats the image on your clipboard in a frameless, draggable, resizable, always-
 
 ```sh
 git clone https://github.com/tomatosource/floater && cd floater
-./build.sh --install   # needs Xcode command line tools; installs /Applications/Floater.app
+./install.sh   # needs Xcode command line tools; installs /Applications/Floater.app
 ```
 
 With an image on your clipboard, open Floater. Click it and press ⌘Q to close.
@@ -29,7 +29,7 @@ With an image on your clipboard, open Floater. Click it and press ⌘Q to close.
 
 ```sh
 ./build.sh            # builds build/Floater.app
-./build.sh --install  # also copies it to /Applications
+./install.sh          # builds and copies it to /Applications
 ```
 
 ## Developing (note for agents)
