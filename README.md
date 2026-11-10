@@ -1,6 +1,6 @@
 # Floater
 
-Floats the image on your clipboard in a frameless, always-on-top window on the current desktop.
+Floats the image on your clipboard in a frameless, draggable, resizable, always-on-top window on the current desktop.
 
 ![Floater pinning an image above another window](docs/screenshot.jpg)
 
