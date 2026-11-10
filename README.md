@@ -2,6 +2,20 @@
 
 Floats the image on your clipboard in a frameless, always-on-top window on the current desktop.
 
+![Floater pinning an image above another window](docs/screenshot.jpg)
+
+## Install & use
+
+```sh
+git clone https://github.com/tomatosource/floater && cd floater
+./build.sh --install   # needs Xcode command line tools; installs /Applications/Floater.app
+```
+
+Copy an image (e.g. a screenshot with ⌃⇧⌘4), then launch Floater from Spotlight/Raycast or bind it to
+a hotkey. Click it and press ⌘Q to close.
+
+## Features
+
 - Opens centred on the screen with the mouse; if there's no image on the clipboard it posts a
   "No image on clipboard" notification and quits.
 - Launching it again closes the running copy (re-opening a running copy reloads from the clipboard).
@@ -29,3 +43,8 @@ The app saves its current image to `~/Library/Application Support/Floater/last.p
 frame to the `lastFrame` user default (bundle `com.tomatosource.floater`) every time it shows,
 moves or resizes. `--restore` reads these instead of the clipboard. Keep this working when
 changing how windows are created.
+
+## Credits
+
+Screenshot photo by [Alexey Topolyanskiy](https://unsplash.com/photos/-oWyJoSqBRM) on Unsplash.
+Icons from [Lucide](https://lucide.dev) (ISC).
