@@ -2,7 +2,8 @@ import AppKit
 
 let handleSize: CGFloat = 22
 let minWidth: CGFloat = 80
-let buttonSize: CGFloat = 24
+let buttonSize: CGFloat = 32
+let buttonInset: CGFloat = 8
 
 // MARK: - Window
 
@@ -16,6 +17,9 @@ final class FloatWindow: NSWindow {
 final class ImageView: NSView {
     var image: NSImage
     var hoverControls: [NSView] = []
+    var imageOpacity: CGFloat = 1 {
+        didSet { needsDisplay = true; window?.invalidateShadow() }
+    }
 
     init(image: NSImage) {
         self.image = image
@@ -25,7 +29,7 @@ final class ImageView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     override func draw(_ dirtyRect: NSRect) {
-        image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1)
+        image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: imageOpacity)
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -133,16 +137,33 @@ final class ResizeHandle: NSView {
     }
 }
 
+// MARK: - Icons (Lucide, ISC license — https://lucide.dev)
+
+enum Icon {
+    static let ghost = #"<path d="M15 10v1"/><path d="M7.528 20.472a1.6 1.6 0 012.277 0l1.057 1.056a1.6 1.6 0 002.276 0l1.057-1.056a1.6 1.6 0 012.277 0l1.114 1.114a1.4 1.4 0 002.414-1V10a8 8 0 00-16 0v10.586a1.4 1.4 0 002.414 1z"/><path d="M9 10v1"/>"#
+    static let copy = #"<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>"#
+    static let check = #"<path d="M20 6 9 17l-5-5"/>"#
+
+    static func image(_ body: String, size: CGFloat) -> NSImage? {
+        let svg = #"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"# + body + "</svg>"
+        let image = NSImage(data: Data(svg.utf8))
+        image?.size = NSSize(width: size, height: size)
+        return image
+    }
+}
+
 // MARK: - Ghost buttons (shown on hover)
 
 final class GhostButton: NSView {
-    var symbolName: String
+    var icon: String { didSet { needsDisplay = true } }
+    var iconAlpha: CGFloat = 1 { didSet { needsDisplay = true } }
     let action: (GhostButton) -> Void
 
-    init(symbol: String, action: @escaping (GhostButton) -> Void) {
-        self.symbolName = symbol
+    init(icon: String, tooltip: String, action: @escaping (GhostButton) -> Void) {
+        self.icon = icon
         self.action = action
         super.init(frame: .zero)
+        toolTip = tooltip
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -151,33 +172,25 @@ final class GhostButton: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let circle = NSBezierPath(ovalIn: bounds.insetBy(dx: 1, dy: 1))
-        NSColor.black.withAlphaComponent(0.45).setFill()
+        NSColor.black.withAlphaComponent(0.5).setFill()
         circle.fill()
-        NSColor.white.withAlphaComponent(0.7).setStroke()
+        NSColor.white.withAlphaComponent(0.6).setStroke()
         circle.lineWidth = 1
         circle.stroke()
 
-        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
-            .applying(.init(paletteColors: [.white]))
-        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config) {
-            let s = symbol.size
-            symbol.draw(in: NSRect(x: bounds.midX - s.width / 2, y: bounds.midY - s.height / 2,
-                                   width: s.width, height: s.height))
-        }
+        let side: CGFloat = 18
+        Icon.image(icon, size: side)?.draw(
+            in: NSRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side),
+            from: .zero, operation: .sourceOver, fraction: iconAlpha)
     }
 
     override func mouseDown(with event: NSEvent) { action(self) }
 
     // Briefly swap the icon to confirm an action.
-    func flash(_ symbol: String) {
-        let original = symbolName
-        symbolName = symbol
-        needsDisplay = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-            self?.symbolName = original
-            self?.needsDisplay = true
-        }
+    func flash(_ temporary: String) {
+        let original = icon
+        icon = temporary
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.icon = original }
     }
 }
 
@@ -295,7 +308,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         content.frame = NSRect(origin: .zero, size: size)
         content.autoresizingMask = [.width, .height]
 
-        for corner in Corner.allCases {
+        for corner in Corner.allCases where corner != .topRight {
             let handle = ResizeHandle(aspect: aspect, corner: corner)
             handle.frame = NSRect(x: corner.isRight ? size.width - handleSize : 0,
                                   y: corner.isTop ? size.height - handleSize : 0,
@@ -306,19 +319,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if corner != .bottomRight { content.hoverControls.append(handle) }
         }
 
-        let opacity = GhostButton(symbol: "circle.lefthalf.filled") { b in
-            guard let window = b.window else { return }
-            window.alphaValue = window.alphaValue < 1 ? 1 : 0.25
+        // Only the image fades, so grips and buttons stay fully visible.
+        let ghost = GhostButton(icon: Icon.ghost, tooltip: "Toggle transparency") { [unowned content] b in
+            content.imageOpacity = content.imageOpacity < 1 ? 1 : 0.25
+            b.iconAlpha = content.imageOpacity < 1 ? 0.4 : 1
         }
-        let copy = GhostButton(symbol: "doc.on.doc") { b in
+        let copy = GhostButton(icon: Icon.copy, tooltip: "Copy image") { b in
             NSPasteboard.general.clearContents()
             NSPasteboard.general.writeObjects([image])
-            b.flash("checkmark")
+            b.flash(Icon.check)
         }
-        // Right-to-left from just inside the top-right resize handle.
-        for (i, button) in [opacity, copy].enumerated() {
-            let x = size.width - handleSize - 4 - CGFloat(i + 1) * buttonSize - CGFloat(i) * 6
-            button.frame = NSRect(x: x, y: size.height - buttonSize - 6, width: buttonSize, height: buttonSize)
+        // Right-to-left from the top-right corner.
+        for (i, button) in [ghost, copy].enumerated() {
+            let x = size.width - buttonInset - CGFloat(i + 1) * buttonSize - CGFloat(i) * 6
+            button.frame = NSRect(x: x, y: size.height - buttonSize - buttonInset,
+                                  width: buttonSize, height: buttonSize)
             button.autoresizingMask = [.minXMargin, .minYMargin]
             content.addSubview(button)
             content.hoverControls.append(button)

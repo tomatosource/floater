@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Floater",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(name: "Floater", path: "Sources/Floater")
     ]
