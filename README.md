@@ -13,8 +13,8 @@ git clone https://github.com/tomatosource/floater && cd floater
 
 With an image or GIF on your clipboard, open Floater. Click it and press ⌘Q to close.
 
-To flip between two layouts (say, small in a corner and big beside your editor): place it, hover
-and double-click **A**; move/resize it, double-click **B**. Now click A or B to snap between them.
+Hover and click **A** to make it big, **B** to tuck it small into the top-right corner. Prefer a
+different small spot? Put it there and double-click **B**; triple-click **B** to go back to the default.
 
 ## Features
 
@@ -26,9 +26,13 @@ and double-click **A**; move/resize it, double-click **B**. Now click A or B to 
   corner shows a grip; the other corners are invisible hot zones with a resize cursor.
 - Animated GIFs play — copied GIF data (e.g. from a browser) or a `.gif` file copied in Finder.
 - On hover, a strip of buttons in the top-right corner, left to right:
-  - **A** / **B** — double-click to save the window's current position and size, click to snap
-    back there (animated; a different-shaped image keeps the saved centre and width). Dimmed until
-    saved; slots persist across launches (`slotA` / `slotB` defaults).
+  - **A** — big: as large as fits the screen (aspect kept, at least 20px clear of the menu bar,
+    Dock and screen edges), centred.
+  - **B** — small: by default in the top-right corner (20px in), its longer side 30% of the
+    screen's longer side. Double-click to save the window's current position and size as B
+    instead (a different-shaped image keeps the saved centre and width); triple-click to clear
+    that and go back to the default. The saved spot persists across launches (`slotB` default).
+  - A and B animate the move, so clicking them toggles between big and small.
   - **Eraser** replaces the image with a random photo from [Lorem Picsum](https://picsum.photos)
     (Unsplash photos, free to use, no API key); the window keeps its centre and area.
   - **Copy** the image to the clipboard (GIFs keep their animation).

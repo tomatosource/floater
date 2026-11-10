@@ -5,6 +5,8 @@ let hotCornerSize: CGFloat = 14
 let minWidth: CGFloat = 80
 let buttonSize: CGFloat = 32
 let buttonInset: CGFloat = 8
+let bigMargin: CGFloat = 20     // A (big) and B's default keep this clear of the screen edges
+let smallFraction: CGFloat = 0.3 // B's default: longer side as a fraction of the screen's longer side
 
 // MARK: - Window
 
@@ -189,13 +191,15 @@ enum Icon {
 // MARK: - Ghost buttons (shown on hover)
 
 // Shows an icon, or a letter when `icon` is nil. With `doubleAction`, a single click waits out the
-// double-click interval so a double-click doesn't fire the single-click action first.
+// double-click interval so a double-click doesn't fire the single-click action first. A triple-click
+// fires `doubleAction` then `tripleAction`.
 final class GhostButton: NSView {
     var icon: String? { didSet { needsDisplay = true } }
     var label: String? { didSet { needsDisplay = true } }
     var iconAlpha: CGFloat = 1 { didSet { needsDisplay = true } }
     let action: (GhostButton) -> Void
     var doubleAction: ((GhostButton) -> Void)?
+    var tripleAction: ((GhostButton) -> Void)?
     private var pendingClick: DispatchWorkItem?
 
     init(icon: String?, label: String? = nil, tooltip: String, action: @escaping (GhostButton) -> Void) {
@@ -236,6 +240,7 @@ final class GhostButton: NSView {
     override func mouseDown(with event: NSEvent) {
         guard let doubleAction else { return action(self) }
         pendingClick?.cancel()
+        if event.clickCount >= 3, let tripleAction { return tripleAction(self) }
         if event.clickCount >= 2 { return doubleAction(self) }
         let click = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -253,7 +258,7 @@ final class GhostButton: NSView {
     }
 }
 
-// Saved A/B window frames, kept across launches.
+// Saved window frames (the B button), kept across launches.
 enum Slots {
     static func key(_ name: String) -> String { "slot\(name)" }
 
@@ -265,6 +270,10 @@ enum Slots {
 
     static func save(_ name: String, frame: NSRect) {
         UserDefaults.standard.set(NSStringFromRect(frame), forKey: key(name))
+    }
+
+    static func clear(_ name: String) {
+        UserDefaults.standard.removeObject(forKey: key(name))
     }
 }
 
@@ -468,28 +477,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                           frame: NSRect(x: f.midX - nw / 2, y: f.midY - nh / 2, width: nw, height: nh))
             }
         }
-        // A/B: double-click saves the window frame, click snaps back to it. Dimmed until saved.
-        let slots = ["B", "A"].map { name in
-            let button = GhostButton(icon: nil, label: name,
-                                     tooltip: "Click: snap to \(name). Double-click: save this position as \(name).") { [weak w] _ in
-                guard let w else { return }
-                guard let saved = Slots.load(name) else { NSSound.beep(); return }
+        // A: fixed big mode — as large as fits the screen (keeping aspect, bigMargin clear of the edges), centred.
+        let a = GhostButton(icon: nil, label: "A", tooltip: "Big") { [weak w] _ in
+            guard let w, let screen = w.screen ?? NSScreen.main else { return }
+            let area = screen.visibleFrame.insetBy(dx: bigMargin, dy: bigMargin)
+            let bw = min(area.width, area.height * aspect), bh = bw / aspect
+            w.setFrame(NSRect(x: area.midX - bw / 2, y: area.midY - bh / 2, width: bw, height: bh),
+                       display: true, animate: true)
+        }
+        // B: click snaps to the saved frame, or by default small in the top-right corner (longer side
+        // smallFraction of the screen's longer side). Double-click saves, triple-click clears.
+        let b = GhostButton(icon: nil, label: "B",
+                            tooltip: "Click: snap to B. Double-click: save this position. Triple-click: reset.") { [weak w] _ in
+            guard let w, let screen = w.screen ?? NSScreen.main else { return }
+            if let saved = Slots.load("B") {
                 // Keep the saved centre and width; fit the height to this image's aspect ratio.
                 let h = saved.width / aspect
                 w.setFrame(NSRect(x: saved.minX, y: saved.midY - h / 2, width: saved.width, height: h),
                            display: true, animate: true)
+                return
             }
-            button.iconAlpha = Slots.load(name) == nil ? 0.4 : 1
-            button.doubleAction = { [weak w] b in
-                guard let w else { return }
-                Slots.save(name, frame: w.frame)
-                b.iconAlpha = 1
-                b.flash(Icon.check)
-            }
-            return button
+            let area = screen.visibleFrame.insetBy(dx: bigMargin, dy: bigMargin)
+            let long = smallFraction * max(screen.visibleFrame.width, screen.visibleFrame.height)
+            let sw = aspect >= 1 ? long : long * aspect, sh = sw / aspect
+            w.setFrame(NSRect(x: area.maxX - sw, y: area.maxY - sh, width: sw, height: sh),
+                       display: true, animate: true)
+        }
+        b.doubleAction = { [weak w] b in
+            guard let w else { return }
+            Slots.save("B", frame: w.frame)
+            b.flash(Icon.check)
+        }
+        b.tripleAction = { b in
+            Slots.clear("B")
+            b.flash(Icon.check)
         }
         // Right-to-left from the top-right corner: A B photo copy ghost.
-        for (i, button) in ([ghost, copy, photo] + slots).enumerated() {
+        for (i, button) in [ghost, copy, photo, b, a].enumerated() {
             let x = size.width - buttonInset - CGFloat(i + 1) * buttonSize - CGFloat(i) * 6
             button.frame = NSRect(x: x, y: size.height - buttonSize - buttonInset,
                                   width: buttonSize, height: buttonSize)
