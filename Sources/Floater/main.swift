@@ -1,6 +1,7 @@
 import AppKit
 
 let handleSize: CGFloat = 22
+let hotCornerSize: CGFloat = 14
 let minWidth: CGFloat = 80
 let buttonSize: CGFloat = 32
 let buttonInset: CGFloat = 8
@@ -56,15 +57,26 @@ final class ImageView: NSView {
     }
 }
 
-// MARK: - Bottom-right resize handle (keeps aspect ratio, top-left anchored)
+// MARK: - Corner resize handles (keep aspect ratio, opposite corner anchored)
+
+enum Corner: CaseIterable {
+    case topLeft, topRight, bottomLeft, bottomRight
+
+    var isRight: Bool { self == .topRight || self == .bottomRight }
+    var isTop: Bool { self == .topLeft || self == .topRight }
+}
+
+// Only the bottom-right handle draws a grip; the others are invisible hot zones with a resize cursor.
 
 final class ResizeHandle: NSView {
     let aspect: CGFloat
+    let corner: Corner
     private var startFrame = NSRect.zero
     private var startMouse = NSPoint.zero
 
-    init(aspect: CGFloat) {
+    init(aspect: CGFloat, corner: Corner) {
         self.aspect = aspect
+        self.corner = corner
         super.init(frame: .zero)
     }
 
@@ -75,12 +87,19 @@ final class ResizeHandle: NSView {
     override func resetCursorRects() {
         var cursor = NSCursor.crosshair
         if #available(macOS 15, *) {
-            cursor = .frameResize(position: .bottomRight, directions: .all)
+            let pos: NSCursor.FrameResizePosition = switch corner {
+            case .topLeft: .topLeft
+            case .topRight: .topRight
+            case .bottomLeft: .bottomLeft
+            case .bottomRight: .bottomRight
+            }
+            cursor = .frameResize(position: pos, directions: .all)
         }
         addCursorRect(bounds, cursor: cursor)
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        guard corner == .bottomRight else { return }
         let b = bounds
         // Three diagonal lines; dark outline under white so they show on any image.
         for (color, width) in [(NSColor.black.withAlphaComponent(0.6), 3.5), (NSColor.white, 1.5)] {
@@ -106,11 +125,13 @@ final class ResizeHandle: NSView {
     override func mouseDragged(with event: NSEvent) {
         guard let window else { return }
         let now = NSEvent.mouseLocation
-        let dx = now.x - startMouse.x
-        let dy = startMouse.y - now.y // dragging down grows
+        let dx = (now.x - startMouse.x) * (corner.isRight ? 1 : -1)
+        let dy = (now.y - startMouse.y) * (corner.isTop ? 1 : -1)
         let w = max(minWidth, max(startFrame.width + dx, (startFrame.height + dy) * aspect))
         let h = w / aspect
-        window.setFrame(NSRect(x: startFrame.minX, y: startFrame.maxY - h, width: w, height: h), display: true)
+        let x = corner.isRight ? startFrame.minX : startFrame.maxX - w
+        let y = corner.isTop ? startFrame.minY : startFrame.maxY - h
+        window.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true)
     }
 }
 
@@ -285,10 +306,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         content.frame = NSRect(origin: .zero, size: size)
         content.autoresizingMask = [.width, .height]
 
-        let handle = ResizeHandle(aspect: aspect)
-        handle.frame = NSRect(x: size.width - handleSize, y: 0, width: handleSize, height: handleSize)
-        handle.autoresizingMask = [.minXMargin, .maxYMargin]
-        content.addSubview(handle)
+        // Added before the buttons so the buttons win where they overlap.
+        for corner in Corner.allCases {
+            let side = corner == .bottomRight ? handleSize : hotCornerSize
+            let handle = ResizeHandle(aspect: aspect, corner: corner)
+            handle.frame = NSRect(x: corner.isRight ? size.width - side : 0,
+                                  y: corner.isTop ? size.height - side : 0,
+                                  width: side, height: side)
+            handle.autoresizingMask = [corner.isRight ? .minXMargin : .maxXMargin,
+                                       corner.isTop ? .minYMargin : .maxYMargin]
+            content.addSubview(handle)
+        }
 
         // Only the image fades, so grips and buttons stay fully visible.
         let ghost = GhostButton(icon: Icon.ghost, tooltip: "Toggle transparency") { [unowned content] b in

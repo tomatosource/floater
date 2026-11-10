@@ -6,7 +6,8 @@ Floats the image on your clipboard in a frameless, always-on-top window on the c
   "No image on clipboard" notification and quits.
 - Launching it again closes the running copy (re-opening a running copy reloads from the clipboard).
 - Not in Cmd+Tab or the Dock (`LSUIElement`). Click the image to focus, Cmd+Q to quit.
-- Drag the image to move. Drag the bottom-right grip to resize (aspect ratio kept).
+- Drag the image to move. Drag any corner to resize (aspect ratio kept). Only the bottom-right
+  corner shows a grip; the other corners are invisible hot zones with a resize cursor.
 - On hover, buttons in the top-right corner: copy the image to the clipboard, and a ghost that
   toggles image transparency (100% / 40%; the controls stay opaque). Icons are
   [Lucide](https://lucide.dev) SVGs embedded in `Icon`.
