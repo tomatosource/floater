@@ -19,7 +19,6 @@ See [`SKILL_EXAMPLE.md`](SKILL_EXAMPLE.md) for driving Floater from scripts and 
 
 Run `make help` for build, run and install targets.
 
-## Credits
+## License
 
-Demo photos from Unsplash, credited in [`docs/demo/assets/CREDITS.md`](docs/demo/assets/CREDITS.md).
-Icons from [Lucide](https://lucide.dev) (ISC).
+[MIT](LICENSE). Icons from [Lucide](https://lucide.dev) ([license](THIRD_PARTY_LICENSES)).

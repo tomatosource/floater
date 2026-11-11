@@ -158,7 +158,7 @@ final class ResizeHandle: NSView {
     }
 }
 
-// MARK: - Icons (Lucide, ISC license — https://lucide.dev — except where noted)
+// MARK: - Icons (Lucide, https://lucide.dev, except where noted; license in THIRD_PARTY_LICENSES)
 
 enum Icon {
     static let check = #"<path d="M20 6 9 17l-5-5"/>"#
