@@ -339,7 +339,8 @@ enum SavedState {
         guard let image = gif.flatMap(NSImage.init(data:)) ?? NSImage(contentsOf: imageURL),
               let frame = UserDefaults.standard.string(forKey: frameKey).map(NSRectFromString),
               frame.width > 0, frame.height > 0 else { return nil }
-        return (image, gif, frame)
+        // Something outside the app may have written a different-shaped image: fit the frame to it.
+        return (image, gif, reshaped(frame, for: image))
     }
 }
 

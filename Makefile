@@ -1,6 +1,6 @@
 APP := build/Floater.app
 
-.PHONY: build run dev watch install uninstall clean help
+.PHONY: build run dev watch install uninstall demo clean help
 
 ## build: build build/Floater.app
 build:
@@ -28,6 +28,10 @@ install: build
 ## uninstall: remove /Applications/Floater.app
 uninstall:
 	rm -rf /Applications/Floater.app
+
+## demo: re-render docs/demo.gif (needs Pillow and ffmpeg; see docs/demo/GUIDE.md)
+demo:
+	python3 docs/demo/demo.py
 
 ## clean: remove build output
 clean:
