@@ -13,8 +13,10 @@ Install this file wherever your agent reads skills.
 ## Showing the user things
 
 When the user asks to *see* something and an image would answer it, float it rather than
-describing it or pasting a link: find or make the image (download a freely licensed photo, render a
-diagram or chart, take a screenshot), save it to a temp file and write it (below).
+describing it or pasting a link: find or make the image (download a photo or GIF, render a
+diagram or chart, take a screenshot), save it to a temp file and write it (below). It's only shown
+to the user on their own screen, so any image source online is fine: don't limit yourself to freely
+licensed ones, just pick the best image.
 
 The image is the answer. The user flips Floater into big mode, reads it, decides, flips back to
 small mode and replies, so it must stand on its own:
