@@ -354,6 +354,37 @@ enum SavedState {
     }
 }
 
+// MARK: - Window frames
+
+// Natural size (pixels / screen scale), capped at 80% of the screen with the mouse, centred on it.
+func centredFrame(for image: NSImage) -> NSRect {
+    let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
+        ?? NSScreen.main!
+    let visible = screen.visibleFrame
+
+    // Natural size in points: pixels / screen scale (falls back to NSImage size).
+    var size = image.size
+    if let rep = image.representations.first, rep.pixelsWide > 0, rep.pixelsHigh > 0 {
+        size = NSSize(width: CGFloat(rep.pixelsWide) / screen.backingScaleFactor,
+                      height: CGFloat(rep.pixelsHigh) / screen.backingScaleFactor)
+    }
+    let aspect = size.width / size.height
+    let maxW = visible.width * 0.8, maxH = visible.height * 0.8
+    if size.width > maxW { size = NSSize(width: maxW, height: maxW / aspect) }
+    if size.height > maxH { size = NSSize(width: maxH * aspect, height: maxH) }
+    if size.width < minWidth { size = NSSize(width: minWidth, height: minWidth / aspect) }
+
+    return NSRect(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2,
+                  width: size.width, height: size.height)
+}
+
+// Same centre and area as `frame`, reshaped to the image's aspect ratio.
+func reshaped(_ frame: NSRect, for image: NSImage) -> NSRect {
+    let a = image.size.width / image.size.height
+    let w = (frame.width * frame.height * a).squareRoot(), h = w / a
+    return NSRect(x: frame.midX - w / 2, y: frame.midY - h / 2, width: w, height: h)
+}
+
 // MARK: - App
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -391,39 +422,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "Quit Floater", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
+        let editItem = NSMenuItem()
+        main.addItem(editItem)
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Paste", action: #selector(pasteImage(_:)), keyEquivalent: "v").target = self
+        editItem.submenu = editMenu
         NSApp.mainMenu = main
     }
 
-    func showClipboard() {
+    // Cmd+V on the focused window: replace the image with the clipboard's, keeping the window's
+    // centre and area. Beeps if there's no image on the clipboard.
+    @objc func pasteImage(_ sender: Any?) {
+        guard let (image, gif) = clipboardImage() else { NSSound.beep(); return }
+        guard let w = window else { return showClipboard() }
+        show(image: image, gif: gif, frame: reshaped(w.frame, for: image))
+    }
+
+    func clipboardImage() -> (image: NSImage, gif: Data?)? {
         let gif = pasteboardGIF(.general)
-        guard let image = gif.flatMap(NSImage.init(data:)) ?? NSImage(pasteboard: .general), image.isValid else {
-            // No image on the clipboard: keep what's showing, else bring back the last image.
+        guard let image = gif.flatMap(NSImage.init(data:)) ?? NSImage(pasteboard: .general), image.isValid
+        else { return nil }
+        return (image, gif)
+    }
+
+    func showClipboard() {
+        guard let (image, gif) = clipboardImage() else {
+            // No image on the clipboard: keep what's showing, else bring back the last image,
+            // else start with a random photo.
             if window != nil { return }
             if let state = SavedState.load() { return show(image: state.image, gif: state.gif, frame: state.frame) }
-            notify("No image on clipboard")
-            NSApp.terminate(nil)
+            RandomPhoto.fetch { [weak self] photo in
+                guard let self, self.window == nil else { return }
+                guard let photo else {
+                    self.notify("No image on clipboard")
+                    NSApp.terminate(nil)
+                    return
+                }
+                self.show(image: photo, gif: nil, frame: centredFrame(for: photo))
+            }
             return
         }
-
-        let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
-            ?? NSScreen.main!
-        let visible = screen.visibleFrame
-
-        // Natural size in points: pixels / screen scale (falls back to NSImage size).
-        var size = image.size
-        if let rep = image.representations.first, rep.pixelsWide > 0, rep.pixelsHigh > 0 {
-            size = NSSize(width: CGFloat(rep.pixelsWide) / screen.backingScaleFactor,
-                          height: CGFloat(rep.pixelsHigh) / screen.backingScaleFactor)
-        }
-        let aspect = size.width / size.height
-        let maxW = visible.width * 0.8, maxH = visible.height * 0.8
-        if size.width > maxW { size = NSSize(width: maxW, height: maxW / aspect) }
-        if size.height > maxH { size = NSSize(width: maxH * aspect, height: maxH) }
-        if size.width < minWidth { size = NSSize(width: minWidth, height: minWidth / aspect) }
-
-        let frame = NSRect(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2,
-                           width: size.width, height: size.height)
-        show(image: image, gif: gif, frame: frame)
+        show(image: image, gif: gif, frame: centredFrame(for: image))
     }
 
     func show(image: NSImage, gif: Data?, frame: NSRect) {
@@ -482,11 +521,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             RandomPhoto.fetch { photo in
                 b.iconAlpha = 1
                 guard let self, let w, let photo else { NSSound.beep(); return }
-                // Same centre and area as the current window, reshaped to the photo's aspect ratio.
-                let f = w.frame, a = photo.size.width / photo.size.height
-                let nw = (f.width * f.height * a).squareRoot(), nh = nw / a
-                self.show(image: photo, gif: nil,
-                          frame: NSRect(x: f.midX - nw / 2, y: f.midY - nh / 2, width: nw, height: nh))
+                self.show(image: photo, gif: nil, frame: reshaped(w.frame, for: photo))
             }
         }
         // A: fixed big mode — as large as fits the screen (keeping aspect, bigMargin clear of the edges), centred.

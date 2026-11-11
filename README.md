@@ -21,7 +21,10 @@ different small spot? Put it there and double-click **B**; triple-click **B** to
 ## Features
 
 - Opens centred on the screen with the mouse. If there's no image on the clipboard it reopens the
-  last image where it was (or, with no last image, posts "No image on clipboard" and quits).
+  last image where it was (or, with no last image, opens on a random photo; if that fetch fails it
+  posts "No image on clipboard" and quits).
+- Click the window and press ⌘V to replace the image with the one on the clipboard (keeps the
+  window's centre and area; beeps if there's no image).
 - Launching it again closes the running copy (re-opening a running copy reloads from the clipboard).
 - Not in Cmd+Tab or the Dock (`LSUIElement`). Click the image to focus, Cmd+Q to quit.
 - Drag the image to move. Drag any corner to resize (aspect ratio kept). Only the bottom-right
