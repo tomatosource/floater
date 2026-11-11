@@ -24,8 +24,8 @@ Show me Mookie Betts with his stats from this year.
 ```
 
 ```text
-Pull the weekly signup numbers from #growth in Slack, chart the last quarter, then pin it
-small.
+Pull the weekly signup numbers from #growth in Slack, chart the last quarter,
+then pin it small.
 ```
 
 ## Scripting
