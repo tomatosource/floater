@@ -25,6 +25,16 @@ final class ImageView: NSView {
     // Set for animated GIFs: the rep whose current frame is drawn and advanced on a timer.
     private var animatedRep: NSBitmapImageRep?
     private var frameCount = 1
+    private var frameTimer: Timer?
+    var isAnimated: Bool { animatedRep != nil }
+    // The play/pause button: holds the current frame until resumed.
+    var isPaused = false {
+        didSet {
+            guard isPaused != oldValue else { return }
+            frameTimer?.invalidate()
+            if !isPaused { scheduleNextFrame() }
+        }
+    }
 
     init(image: NSImage) {
         self.image = image
@@ -53,9 +63,9 @@ final class ImageView: NSView {
         // Like browsers, treat near-zero frame delays as 0.1s.
         var delay = (rep.value(forProperty: .currentFrameDuration) as? Double) ?? 0.1
         if delay < 0.02 { delay = 0.1 }
-        Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+        frameTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             // Stop once the window has closed (a new image replaces this view).
-            guard let self, self.window != nil, let rep = self.animatedRep else { return }
+            guard let self, self.window != nil, !self.isPaused, let rep = self.animatedRep else { return }
             let current = (rep.value(forProperty: .currentFrame) as? Int) ?? 0
             rep.setProperty(.currentFrame, withValue: (current + 1) % self.frameCount)
             self.needsDisplay = true
@@ -162,6 +172,8 @@ final class ResizeHandle: NSView {
 
 enum Icon {
     static let check = #"<path d="M20 6 9 17l-5-5"/>"#
+    static let pause = #"<rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/>"#
+    static let play = #"<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>"#
     static let pin = #"<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>"#
     static let x = #"<path d="M18 6 6 18"/><path d="m6 6 12 12"/>"#
     // Not Lucide: a screen with a big centred window / a small one in the top-right corner.
@@ -626,8 +638,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Slots.clear("B")
             b.flash(Icon.check)
         }
-        // Right-to-left from the top-right corner: big, small, pin, close.
-        for (i, button) in [close, pin, small, big].enumerated() {
+        var buttons = [close, pin, small, big]
+        if content.isAnimated {
+            let play = GhostButton(icon: Icon.pause, tooltip: "Pause / play the GIF") { [weak content] b in
+                guard let content else { return }
+                content.isPaused.toggle()
+                b.icon = content.isPaused ? Icon.play : Icon.pause
+            }
+            buttons.insert(play, at: 2)
+        }
+        // Right-to-left from the top-right corner: big, small, play/pause (GIFs only), pin, close.
+        for (i, button) in buttons.enumerated() {
             let x = size.width - buttonInset - CGFloat(i + 1) * buttonSize - CGFloat(i) * 6
             button.frame = NSRect(x: x, y: size.height - buttonSize - buttonInset,
                                   width: buttonSize, height: buttonSize)
