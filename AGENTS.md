@@ -1,5 +1,10 @@
 # Floater: notes for agents
 
+- Installing for a user: needs macOS 14+ and the Xcode command line tools (`xcode-select --install`;
+  check with `xcode-select -p`). Then `make install` builds and copies it to /Applications. Tell the
+  user if a requirement is missing. The README only gives a prompt to paste to an agent, so the
+  install details live here.
+
 - The whole app is `Sources/Floater/main.swift`; `build.sh` wraps the SwiftPM binary in an ad-hoc
   signed `.app` bundle (and declares the `floater://` URL scheme).
 - The app saves its current image to `~/Library/Application Support/Floater/last.png` (or `last.gif`

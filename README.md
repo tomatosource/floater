@@ -4,7 +4,7 @@
 
 ## Install
 
-Needs macOS 14+ and the Xcode command line tools. Paste this to your coding agent:
+Paste this to your coding agent:
 
 ```text
 Install Floater from https://github.com/tomatosource/floater: clone it, run `make install`, then
