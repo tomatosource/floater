@@ -1,3 +1,5 @@
 .build/
 build/
 docs/demo/preview.png
+.DS_Store
+.swiftpm/
