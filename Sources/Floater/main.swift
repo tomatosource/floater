@@ -477,7 +477,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         closeOtherInstances()
         setupMenu()
         if CommandLine.arguments.contains("--restore"), let state = SavedState.load() {
-            show(image: state.image, gif: state.gif, frame: state.frame)
+            // Scripted relaunch: show the image without taking focus from what the user is doing.
+            show(image: state.image, gif: state.gif, frame: state.frame, activate: false)
         } else {
             showClipboard()
         }
@@ -564,7 +565,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         show(image: image, gif: gif, frame: centredFrame(for: image))
     }
 
-    func show(image: NSImage, gif: Data?, frame: NSRect) {
+    func show(image: NSImage, gif: Data?, frame: NSRect, activate: Bool = true) {
         window?.close()
         SavedState.save(image: image, gif: gif)
         SavedState.save(frame: frame)
@@ -644,8 +645,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let win = n.object as? NSWindow { SavedState.save(frame: win.frame) }
             }
         }
-        w.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        if activate {
+            w.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            w.orderFrontRegardless()
+        }
         window = w
         current = (image, gif)
     }

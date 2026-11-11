@@ -12,7 +12,7 @@ run: build
 
 ## dev: rebuild and relaunch, restoring the last image, position and size
 dev: build
-	open -n $(APP) --args --restore
+	open -g -n $(APP) --args --restore
 
 ## watch: run `make dev` whenever a source file changes (needs entr: brew install entr)
 watch:

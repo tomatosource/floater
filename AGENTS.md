@@ -10,7 +10,8 @@
   for a GIF; whichever is newer wins) and its window frame to the `lastFrame` user default (bundle
   `com.tomatosource.floater`) every time it shows, moves or resizes. Launching with `--restore`
   (what `make dev` does) reads these instead of the clipboard, fitting the frame to the image's
-  shape. Keep this working when changing how windows are created: scripts and the example skill rely on it.
+  shape, and shows it without taking focus (launch it with `open -g` too). Keep this working when
+  changing how windows are created: scripts and the example skill rely on it.
 - Relaunch with `make dev`, never a plain `open` or `make run`. The user may have the window placed
   somewhere deliberately, and their clipboard has likely moved on.
 - `floater://big|small|toggle|pin|unpin` URLs (handled in `AppDelegate.application(_:open:)`) switch

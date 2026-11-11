@@ -37,7 +37,7 @@ sips -s format png IMAGE --out "$dir/last.png" && rm -f "$dir/last.gif"   # GIF:
 # First run only: Floater needs a saved frame to restore into (small mode fixes it up below).
 defaults read com.tomatosource.floater lastFrame >/dev/null 2>&1 ||
   defaults write com.tomatosource.floater lastFrame -string '{{100, 100}, {480, 320}}'
-open -n -a Floater --args --restore
+open -g -n -a Floater --args --restore   # -g: don't take focus
 sleep 1 && open -g floater://small   # optional: tuck it into the user's small-mode spot
 ```
 
