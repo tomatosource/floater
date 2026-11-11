@@ -16,7 +16,7 @@ install its SKILL_EXAMPLE.md as a skill named "floater" so you can show me image
 Once the skill is installed, just ask your agent to show you things:
 
 ```text
-Build the new revenue card for the dashboard, and float me a screenshot of it when you're done.
+Once you've finished building the new dashboard card, show me a screenshot.
 ```
 
 ```text
@@ -25,7 +25,7 @@ Show me Mookie Betts with his stats from this year.
 
 ```text
 Pull the weekly signup numbers from #growth in Slack, chart the last quarter, then pin it
-small in the corner.
+small.
 ```
 
 ## Scripting
