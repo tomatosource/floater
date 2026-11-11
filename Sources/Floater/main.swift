@@ -6,7 +6,7 @@ let minWidth: CGFloat = 80
 let buttonSize: CGFloat = 32
 let buttonInset: CGFloat = 8
 let bigMargin: CGFloat = 20     // A (big) and B's default keep this clear of the screen edges
-let smallFraction: CGFloat = 0.3 // B's default: longer side as a fraction of the screen's longer side
+let smallFraction: CGFloat = 0.223 // B's default: longer side as a fraction of the screen's longer side
 
 // MARK: - Window
 
@@ -251,10 +251,19 @@ final class GhostButton: NSView {
     }
 
     // Briefly swap the icon to confirm an action.
+    // Overlapping flashes (double- then triple-click) restore to the pre-flash icon, not each other's.
+    private var flashCount = 0
+    private var restingIcon: String?
+
     func flash(_ temporary: String) {
-        let original = icon
+        if flashCount == 0 { restingIcon = icon }
+        flashCount += 1
         icon = temporary
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.icon = original }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            guard let self else { return }
+            self.flashCount -= 1
+            if self.flashCount == 0 { self.icon = self.restingIcon }
+        }
     }
 }
 
@@ -388,6 +397,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func showClipboard() {
         let gif = pasteboardGIF(.general)
         guard let image = gif.flatMap(NSImage.init(data:)) ?? NSImage(pasteboard: .general), image.isValid else {
+            // No image on the clipboard: keep what's showing, else bring back the last image.
+            if window != nil { return }
+            if let state = SavedState.load() { return show(image: state.image, gif: state.gif, frame: state.frame) }
             notify("No image on clipboard")
             NSApp.terminate(nil)
             return
