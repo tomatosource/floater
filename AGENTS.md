@@ -13,9 +13,12 @@
   shape. Keep this working when changing how windows are created: scripts and the example skill rely on it.
 - Relaunch with `make dev`, never a plain `open` or `make run`. The user may have the window placed
   somewhere deliberately, and their clipboard has likely moved on.
+- `floater://big|small|toggle|pin|unpin` URLs (handled in `AppDelegate.application(_:open:)`) switch
+  modes on the running window; `open -g` them. If Floater isn't running, the URL launches it on the
+  clipboard image.
 - Other saved defaults: `slotB` (the saved small-mode spot; named from when the buttons were A/B)
   and `pinned`.
 - The README demo GIF is rendered by `docs/demo/demo.py`. When a user-visible feature changes,
   update the demo too: follow `docs/demo/GUIDE.md`.
-- `SKILL_EXAMPLE.md` is the public example agent skill; keep it generic (no personal paths or hosts)
-  and in step with the scripting hooks in the README.
+- `SKILL_EXAMPLE.md` is the public example agent skill and the README's only scripting docs; keep it
+  generic (no personal paths or hosts) and in step with the URL scheme and `--restore` behaviour.
