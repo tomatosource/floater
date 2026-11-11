@@ -4,21 +4,12 @@
 
 ## Install
 
-Needs macOS 14+ and the Xcode command line tools (`xcode-select --install`).
+Needs macOS 14+ and the Xcode command line tools. Paste this to your coding agent:
 
-```sh
-git clone https://github.com/tomatosource/floater && cd floater
-make install   # installs /Applications/Floater.app
+```text
+Install Floater from https://github.com/tomatosource/floater: clone it, run `make install`, then
+install its SKILL_EXAMPLE.md as a skill named "floater" so you can show me images in it.
 ```
-
-Then copy an image and open Floater. Hover it for the controls (each has a tooltip); click it and
-press ⌘Q to quit.
-
-Or paste this to your coding agent (Claude Code or similar):
-
-> Install Floater from https://github.com/tomatosource/floater: clone it, run `make install`, then
-> install its `SKILL_EXAMPLE.md` as a skill named `floater` (for Claude Code,
-> `~/.claude/skills/floater/SKILL.md`) so you can show me images in it.
 
 ## Scripting and agents
 

@@ -8,7 +8,7 @@ description: "Show the user images in Floater (an always-on-top image window on 
 [Floater](https://github.com/tomatosource/floater) floats an image in a frameless, always-on-top
 window. This skill lets you put images there, read the one that's there, and switch its size.
 
-Copy this file to `~/.claude/skills/floater/SKILL.md` (Claude Code) or wherever your agent reads skills.
+Install this file wherever your agent reads skills.
 
 ## Showing the user things
 
