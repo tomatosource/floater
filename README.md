@@ -11,12 +11,10 @@ Install Floater from https://github.com/tomatosource/floater: clone it, run `mak
 install its SKILL_EXAMPLE.md as a skill named "floater" so you can show me images in it.
 ```
 
-## Scripting and agents
+## Scripting
 
-This repo includes an example agent skill, [`SKILL_EXAMPLE.md`](SKILL_EXAMPLE.md), that lets an agent
-float images ("show me…"), read the floated image, and switch modes. It uses the two hooks below.
-
-**Switch modes** on the running window with a URL:
+Scripts and agents can drive Floater directly; [`SKILL_EXAMPLE.md`](SKILL_EXAMPLE.md) wraps this up
+as an agent skill.
 
 ```sh
 open -g floater://big      # big mode
@@ -26,17 +24,13 @@ open -g floater://pin      # show on every desktop
 open -g floater://unpin    # show on the current desktop only
 ```
 
-`-g` leaves focus where it is. Only use these while Floater is running: if it isn't, the URL
-launches it, floating whatever is on the clipboard.
+These only work while Floater is running; otherwise the URL launches it with the clipboard image.
 
-**Set the image** without touching the clipboard: write it to
-`~/Library/Application Support/Floater/last.png` (or `last.gif` to keep a GIF animated; Floater
-shows whichever is newer, so delete the other), then relaunch with `--restore`. The new instance
-replaces the running one, keeping the window's position and area, reshaped to the new image.
+To set the image without touching the clipboard, write it to Floater's saved image and relaunch.
+The window keeps its place, reshaped to the new image:
 
 ```sh
-cp image.png ~/Library/Application\ Support/Floater/last.png
-rm -f ~/Library/Application\ Support/Floater/last.gif
+cp image.png ~/Library/Application\ Support/Floater/last.png   # a GIF goes to last.gif
 open -n -a Floater --args --restore
 ```
 
