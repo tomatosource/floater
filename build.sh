@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds Floater.app. Pass --install to copy it into /Applications.
+# Builds build/Floater.app (a SwiftPM release build wrapped in an app bundle). Run via `make build`.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -30,8 +30,3 @@ EOF
 codesign --force --sign - "$APP"
 echo "Built $APP"
 
-if [[ "${1:-}" == "--install" ]]; then
-    rm -rf /Applications/Floater.app
-    cp -R "$APP" /Applications/
-    echo "Installed /Applications/Floater.app"
-fi

@@ -6,9 +6,11 @@ Floats the image (or animated GIF) on your clipboard in a frameless, draggable, 
 
 ## Install & use
 
+Needs macOS 14+ and the Xcode command line tools (`xcode-select --install`).
+
 ```sh
 git clone https://github.com/tomatosource/floater && cd floater
-./install.sh   # needs Xcode command line tools; installs /Applications/Floater.app
+make install   # installs /Applications/Floater.app
 ```
 
 With an image or GIF on your clipboard, open Floater. Click it and press ⌘Q to close.
@@ -40,24 +42,29 @@ different small spot? Put it there and double-click **B**; triple-click **B** to
 
   Icons are [Lucide](https://lucide.dev) SVGs embedded in `Icon`.
 
-## Build
+## Development
 
 ```sh
-./build.sh            # builds build/Floater.app
-./install.sh          # builds and copies it to /Applications
+make build      # build build/Floater.app
+make run        # build and launch, floating the image on the clipboard
+make dev        # rebuild and relaunch, restoring the last image, position and size
+make watch      # `make dev` on every source change (needs entr: brew install entr)
+make install    # build and copy to /Applications
+make uninstall  # remove /Applications/Floater.app
+make clean      # remove build output
 ```
 
-## Developing (note for agents)
-
-**Always relaunch with `./dev.sh`, never a plain `open`.** It rebuilds and launches with
-`--restore`, so the window comes back at the same position and size showing the same image —
-the user may have it placed somewhere deliberately and their clipboard has likely moved on.
+The whole app is `Sources/Floater/main.swift`; `build.sh` wraps the SwiftPM binary in an ad-hoc
+signed `.app` bundle.
 
 The app saves its current image to `~/Library/Application Support/Floater/last.png` (or `last.gif`
-for a GIF; `--restore` uses whichever is newer) and its window
-frame to the `lastFrame` user default (bundle `com.tomatosource.floater`) every time it shows,
-moves or resizes. `--restore` reads these instead of the clipboard. Keep this working when
-changing how windows are created.
+for a GIF; whichever is newer wins) and its window frame to the `lastFrame` user default (bundle
+`com.tomatosource.floater`) every time it shows, moves or resizes. Launching with `--restore`
+(what `make dev` does) reads these instead of the clipboard. Keep this working when changing how
+windows are created.
+
+**Note for agents:** relaunch with `make dev`, never a plain `open` or `make run`. The user may
+have the window placed somewhere deliberately, and their clipboard has likely moved on.
 
 ## Credits
 
