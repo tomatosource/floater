@@ -23,6 +23,13 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>com.tomatosource.floater</string>
+            <key>CFBundleURLSchemes</key><array><string>floater</string></array>
+        </dict>
+    </array>
 </dict>
 </plist>
 EOF

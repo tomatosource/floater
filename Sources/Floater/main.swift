@@ -1,12 +1,12 @@
 import AppKit
 
-let handleSize: CGFloat = 22
 let hotCornerSize: CGFloat = 14
 let minWidth: CGFloat = 80
 let buttonSize: CGFloat = 32
 let buttonInset: CGFloat = 8
-let bigMargin: CGFloat = 20     // A (big) and B's default keep this clear of the screen edges
-let smallFraction: CGFloat = 0.223 // B's default: longer side as a fraction of the screen's longer side
+let bigMargin: CGFloat = 20     // big mode and small mode's default keep this clear of the screen edges
+let smallFraction: CGFloat = 0.223 // small mode's default: longer side as a fraction of the screen's longer side
+let edgeSnap: CGFloat = 60      // a window this close to (or past) a screen edge is anchored to it
 
 // MARK: - Window
 
@@ -15,14 +15,12 @@ final class FloatWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
-// MARK: - Image view (click to focus, drag to move, hover reveals controls)
+// MARK: - Image view (click to focus, drag to move, double-click to toggle size, hover reveals controls)
 
 final class ImageView: NSView {
     var image: NSImage
     var hoverControls: [NSView] = []
-    var imageOpacity: CGFloat = 1 {
-        didSet { needsDisplay = true; window?.invalidateShadow() }
-    }
+    var onDoubleClick: (() -> Void)?
 
     // Set for animated GIFs: the rep whose current frame is drawn and advanced on a timer.
     private var animatedRep: NSBitmapImageRep?
@@ -43,10 +41,10 @@ final class ImageView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         if let rep = animatedRep {
-            rep.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: imageOpacity,
+            rep.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1,
                      respectFlipped: true, hints: nil)
         } else {
-            image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: imageOpacity)
+            image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1)
         }
     }
 
@@ -71,6 +69,7 @@ final class ImageView: NSView {
     override func mouseDown(with event: NSEvent) {
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+        if event.clickCount == 2 { onDoubleClick?(); return }
         window?.performDrag(with: event)
     }
 
@@ -99,13 +98,14 @@ enum Corner: CaseIterable {
     var isTop: Bool { self == .topLeft || self == .topRight }
 }
 
-// Only the bottom-right handle draws a grip; the others are invisible hot zones with a resize cursor.
+// Invisible hot zones with a resize cursor.
 
 final class ResizeHandle: NSView {
     let aspect: CGFloat
     let corner: Corner
     private var startFrame = NSRect.zero
     private var startMouse = NSPoint.zero
+    private var anchor = Anchor(.zero)
 
     init(aspect: CGFloat, corner: Corner) {
         self.aspect = aspect
@@ -135,28 +135,12 @@ final class ResizeHandle: NSView {
         addCursorRect(bounds, cursor: cursor)
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        guard corner == .bottomRight else { return }
-        let b = bounds
-        // Three diagonal lines; dark outline under white so they show on any image.
-        for (color, width) in [(NSColor.black.withAlphaComponent(0.6), 3.5), (NSColor.white, 1.5)] {
-            color.setStroke()
-            for inset in stride(from: CGFloat(6), through: 16, by: 5) {
-                let line = NSBezierPath()
-                line.lineWidth = width
-                line.lineCapStyle = .round
-                line.move(to: NSPoint(x: b.maxX - 3, y: b.minY + inset))
-                line.line(to: NSPoint(x: b.minX + inset, y: b.minY + 3))
-                line.stroke()
-            }
-        }
-    }
-
     override func mouseDown(with event: NSEvent) {
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
         startFrame = window?.frame ?? .zero
         startMouse = NSEvent.mouseLocation
+        anchor = Anchor(startFrame)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -166,22 +150,26 @@ final class ResizeHandle: NSView {
         let dy = (now.y - startMouse.y) * (corner.isTop ? 1 : -1)
         let w = max(minWidth, max(startFrame.width + dx, (startFrame.height + dy) * aspect))
         let h = w / aspect
-        let x = corner.isRight ? startFrame.minX : startFrame.maxX - w
-        let y = corner.isTop ? startFrame.minY : startFrame.maxY - h
-        window.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true)
+        // Edges the window hugs stay put; otherwise the corner opposite the handle does.
+        var a = anchor
+        if a.x == 0 { a.x = corner.isRight ? -1 : 1 }
+        if a.y == 0 { a.y = corner.isTop ? -1 : 1 }
+        window.setFrame(a.place(NSSize(width: w, height: h), from: startFrame), display: true)
     }
 }
 
-// MARK: - Icons (Lucide, ISC license — https://lucide.dev)
+// MARK: - Icons (Lucide, ISC license — https://lucide.dev — except where noted)
 
 enum Icon {
-    static let ghost = #"<path d="M15 10v1"/><path d="M7.528 20.472a1.6 1.6 0 012.277 0l1.057 1.056a1.6 1.6 0 002.276 0l1.057-1.056a1.6 1.6 0 012.277 0l1.114 1.114a1.4 1.4 0 002.414-1V10a8 8 0 00-16 0v10.586a1.4 1.4 0 002.414 1z"/><path d="M9 10v1"/>"#
-    static let copy = #"<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>"#
     static let check = #"<path d="M20 6 9 17l-5-5"/>"#
-    static let eraser = #"<path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.828 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21"/><path d="m5.082 11.09 8.828 8.828"/>"#
+    static let pin = #"<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>"#
+    static let x = #"<path d="M18 6 6 18"/><path d="m6 6 12 12"/>"#
+    // Not Lucide: a screen with a big centred window / a small one in the top-right corner.
+    static let big = #"<rect x="2" y="4" width="20" height="16" rx="2"/><rect x="5.5" y="7.5" width="13" height="9" rx="1"/>"#
+    static let small = #"<rect x="2" y="4" width="20" height="16" rx="2"/><rect x="13" y="7.5" width="5.5" height="4" rx="1"/>"#
 
-    static func image(_ body: String, size: CGFloat) -> NSImage? {
-        let svg = #"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"# + body + "</svg>"
+    static func image(_ body: String, size: CGFloat, color: String = "white") -> NSImage? {
+        let svg = #"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke=""# + color + #"" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"# + body + "</svg>"
         let image = NSImage(data: Data(svg.utf8))
         image?.size = NSSize(width: size, height: size)
         return image
@@ -190,21 +178,19 @@ enum Icon {
 
 // MARK: - Ghost buttons (shown on hover)
 
-// Shows an icon, or a letter when `icon` is nil. With `doubleAction`, a single click waits out the
+// Shows an icon. With `doubleAction`, a single click waits out the
 // double-click interval so a double-click doesn't fire the single-click action first. A triple-click
 // fires `doubleAction` then `tripleAction`.
 final class GhostButton: NSView {
-    var icon: String? { didSet { needsDisplay = true } }
-    var label: String? { didSet { needsDisplay = true } }
-    var iconAlpha: CGFloat = 1 { didSet { needsDisplay = true } }
+    var icon: String { didSet { needsDisplay = true } }
+    var isOn = false { didSet { needsDisplay = true } }  // toggles: yellow icon while on
     let action: (GhostButton) -> Void
     var doubleAction: ((GhostButton) -> Void)?
     var tripleAction: ((GhostButton) -> Void)?
     private var pendingClick: DispatchWorkItem?
 
-    init(icon: String?, label: String? = nil, tooltip: String, action: @escaping (GhostButton) -> Void) {
+    init(icon: String, tooltip: String, action: @escaping (GhostButton) -> Void) {
         self.icon = icon
-        self.label = label
         self.action = action
         super.init(frame: .zero)
         toolTip = tooltip
@@ -222,19 +208,10 @@ final class GhostButton: NSView {
         circle.lineWidth = 1
         circle.stroke()
 
-        if let icon {
-            let side: CGFloat = 18
-            Icon.image(icon, size: side)?.draw(
-                in: NSRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side),
-                from: .zero, operation: .sourceOver, fraction: iconAlpha)
-        } else if let label {
-            let text = NSAttributedString(string: label, attributes: [
-                .font: NSFont.systemFont(ofSize: 15, weight: .semibold),
-                .foregroundColor: NSColor.white.withAlphaComponent(iconAlpha),
-            ])
-            let s = text.size()
-            text.draw(at: NSPoint(x: bounds.midX - s.width / 2, y: bounds.midY - s.height / 2))
-        }
+        let side: CGFloat = 18
+        Icon.image(icon, size: side, color: isOn ? "#FFC21A" : "white")?.draw(
+            in: NSRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side),
+            from: .zero, operation: .sourceOver, fraction: 1)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -253,7 +230,7 @@ final class GhostButton: NSView {
     // Briefly swap the icon to confirm an action.
     // Overlapping flashes (double- then triple-click) restore to the pre-flash icon, not each other's.
     private var flashCount = 0
-    private var restingIcon: String?
+    private var restingIcon = ""
 
     func flash(_ temporary: String) {
         if flashCount == 0 { restingIcon = icon }
@@ -267,7 +244,7 @@ final class GhostButton: NSView {
     }
 }
 
-// Saved window frames (the B button), kept across launches.
+// Saved window frames (the small-mode button), kept across launches.
 enum Slots {
     static func key(_ name: String) -> String { "slot\(name)" }
 
@@ -283,6 +260,18 @@ enum Slots {
 
     static func clear(_ name: String) {
         UserDefaults.standard.removeObject(forKey: key(name))
+    }
+}
+
+// The pin button: show on every desktop (Space) instead of following the active one. Kept across launches.
+enum Pinned {
+    static var isOn: Bool {
+        get { UserDefaults.standard.bool(forKey: "pinned") }
+        set { UserDefaults.standard.set(newValue, forKey: "pinned") }
+    }
+
+    static var behavior: NSWindow.CollectionBehavior {
+        isOn ? [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary] : [.moveToActiveSpace, .fullScreenAuxiliary]
     }
 }
 
@@ -378,17 +367,110 @@ func centredFrame(for image: NSImage) -> NSRect {
                   width: size.width, height: size.height)
 }
 
-// Same centre and area as `frame`, reshaped to the image's aspect ratio.
+// Which edges of its screen's visible area a frame hugs (within edgeSnap, or past them):
+// x is -1 left / 1 right, y is -1 bottom / 1 top, 0 for neither — or both, as with big mode's full width.
+// Two anchored edges pin a corner, one pins that edge (centred along it), none keeps the centre.
+struct Anchor {
+    var x = 0, y = 0
+
+    init(_ frame: NSRect) {
+        let mid = NSPoint(x: frame.midX, y: frame.midY)
+        guard let v = (NSScreen.screens.first { NSMouseInRect(mid, $0.frame, false) } ?? NSScreen.main)?
+            .visibleFrame else { return }
+        func side(_ low: Bool, _ high: Bool) -> Int { low == high ? 0 : low ? -1 : 1 }
+        x = side(frame.minX - v.minX <= edgeSnap, v.maxX - frame.maxX <= edgeSnap)
+        y = side(frame.minY - v.minY <= edgeSnap, v.maxY - frame.maxY <= edgeSnap)
+    }
+
+    // A frame of `size` with this anchor's edges where they are in `frame`.
+    func place(_ size: NSSize, from frame: NSRect) -> NSRect {
+        func origin(_ side: Int, _ min: CGFloat, _ max: CGFloat, _ length: CGFloat) -> CGFloat {
+            side < 0 ? min : side > 0 ? max - length : (min + max - length) / 2
+        }
+        return NSRect(x: origin(x, frame.minX, frame.maxX, size.width),
+                      y: origin(y, frame.minY, frame.maxY, size.height),
+                      width: size.width, height: size.height)
+    }
+}
+
+// Same area as `frame`, reshaped to the image's aspect ratio, anchored to the edges it hugs.
 func reshaped(_ frame: NSRect, for image: NSImage) -> NSRect {
     let a = image.size.width / image.size.height
-    let w = (frame.width * frame.height * a).squareRoot(), h = w / a
-    return NSRect(x: frame.midX - w / 2, y: frame.midY - h / 2, width: w, height: h)
+    let w = (frame.width * frame.height * a).squareRoot()
+    return Anchor(frame).place(NSSize(width: w, height: w / a), from: frame)
 }
 
 // MARK: - App
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow?
+    var current: (image: NSImage, gif: Data?)?  // what the window shows, for Cmd+C
+    var pinButton: GhostButton?
+
+    // MARK: Modes (the hover buttons, and floater:// URLs for scripts and agents)
+
+    // Big mode: as large as fits the screen (keeping aspect, bigMargin clear of the edges), centred.
+    func bigFrame(for w: NSWindow) -> NSRect? {
+        guard let screen = w.screen ?? NSScreen.main else { return nil }
+        let aspect = w.frame.width / w.frame.height
+        let area = screen.visibleFrame.insetBy(dx: bigMargin, dy: bigMargin)
+        let bw = min(area.width, area.height * aspect), bh = bw / aspect
+        return NSRect(x: area.midX - bw / 2, y: area.midY - bh / 2, width: bw, height: bh)
+    }
+
+    func bigMode() {
+        guard let w = window, let frame = bigFrame(for: w) else { return }
+        w.setFrame(frame, display: true, animate: true)
+    }
+
+    // Small mode: the saved frame, or by default small in the top-right corner (longer side
+    // smallFraction of the screen's longer side). The button's double-click saves, triple-click clears.
+    // Saved as slot "B" (the `slotB` default), from when the buttons were labelled A and B.
+    func smallMode() {
+        guard let w = window, let screen = w.screen ?? NSScreen.main else { return }
+        let aspect = w.frame.width / w.frame.height
+        if let saved = Slots.load("B") {
+            // Keep the saved width; fit the height to this image's aspect ratio, anchored to the
+            // edges the saved frame hugs.
+            let size = NSSize(width: saved.width, height: saved.width / aspect)
+            w.setFrame(Anchor(saved).place(size, from: saved), display: true, animate: true)
+            return
+        }
+        let area = screen.visibleFrame.insetBy(dx: bigMargin, dy: bigMargin)
+        let long = smallFraction * max(screen.visibleFrame.width, screen.visibleFrame.height)
+        let sw = aspect >= 1 ? long : long * aspect, sh = sw / aspect
+        w.setFrame(NSRect(x: area.maxX - sw, y: area.maxY - sh, width: sw, height: sh),
+                   display: true, animate: true)
+    }
+
+    // Big mode if it isn't already (within a couple of points), else small mode.
+    func toggleMode() {
+        guard let w = window, let big = bigFrame(for: w) else { return }
+        let f = w.frame
+        let isBig = abs(f.minX - big.minX) < 2 && abs(f.minY - big.minY) < 2 && abs(f.width - big.width) < 2
+        isBig ? smallMode() : bigMode()
+    }
+
+    func setPinned(_ on: Bool) {
+        Pinned.isOn = on
+        pinButton?.isOn = on
+        window?.collectionBehavior = Pinned.behavior
+    }
+
+    // floater://big, small, toggle, pin, unpin. Acts on the open window; a URL that launches
+    // Floater acts on whatever it opened with.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme == "floater" {
+            switch url.host {
+            case "big": bigMode()
+            case "small": smallMode()
+            case "toggle": toggleMode()
+            case "pin": setPinned(true)
+            case "unpin": setPinned(false)
+            default: NSSound.beep()
+            }
+        }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         closeOtherInstances()
@@ -425,9 +507,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let editItem = NSMenuItem()
         main.addItem(editItem)
         let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Copy", action: #selector(copyImage(_:)), keyEquivalent: "c").target = self
         editMenu.addItem(withTitle: "Paste", action: #selector(pasteImage(_:)), keyEquivalent: "v").target = self
         editItem.submenu = editMenu
         NSApp.mainMenu = main
+    }
+
+    // Cmd+C on the focused window: copy the image (GIFs keep their animation).
+    @objc func copyImage(_ sender: Any?) {
+        guard let (image, gif) = current else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        if let gif {
+            // GIF bytes for apps that take animation, TIFF (first frame) for the rest.
+            pb.declareTypes([gifType, .tiff], owner: nil)
+            pb.setData(gif, forType: gifType)
+            pb.setData(image.tiffRepresentation, forType: .tiff)
+        } else {
+            pb.writeObjects([image])
+        }
     }
 
     // Cmd+V on the focused window: replace the image with the clipboard's, keeping the window's
@@ -474,19 +572,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let aspect = size.width / size.height
         let w = FloatWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
         w.level = .floating
-        w.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        w.collectionBehavior = Pinned.behavior
         w.isOpaque = false
         w.backgroundColor = .clear
         w.hasShadow = true
         w.isReleasedWhenClosed = false
 
         let content = ImageView(image: image)
+        content.onDoubleClick = { [weak self] in self?.toggleMode() }
         content.frame = NSRect(origin: .zero, size: size)
         content.autoresizingMask = [.width, .height]
 
         // Added before the buttons so the buttons win where they overlap.
         for corner in Corner.allCases {
-            let side = corner == .bottomRight ? handleSize : hotCornerSize
+            let side = hotCornerSize
             let handle = ResizeHandle(aspect: aspect, corner: corner)
             handle.frame = NSRect(x: corner.isRight ? size.width - side : 0,
                                   y: corner.isTop ? size.height - side : 0,
@@ -496,71 +595,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             content.addSubview(handle)
         }
 
-        // Only the image fades, so grips and buttons stay fully visible.
-        let ghost = GhostButton(icon: Icon.ghost, tooltip: "Toggle transparency") { [unowned content] b in
-            content.imageOpacity = content.imageOpacity < 1 ? 1 : 0.4
-            b.iconAlpha = content.imageOpacity < 1 ? 0.4 : 1
+        let close = GhostButton(icon: Icon.x, tooltip: "Close Floater (same as ⌘Q)") { _ in NSApp.terminate(nil) }
+        let pin = GhostButton(icon: Icon.pin, tooltip: "Pin: show on every desktop, not just this one. Click again to unpin.") { [weak self] _ in
+            self?.setPinned(!Pinned.isOn)
         }
-        let copy = GhostButton(icon: Icon.copy, tooltip: "Copy image") { b in
-            let pb = NSPasteboard.general
-            pb.clearContents()
-            if let gif {
-                // GIF bytes for apps that take animation, TIFF (first frame) for the rest.
-                pb.declareTypes([gifType, .tiff], owner: nil)
-                pb.setData(gif, forType: gifType)
-                pb.setData(image.tiffRepresentation, forType: .tiff)
-            } else {
-                pb.writeObjects([image])
-            }
-            b.flash(Icon.check)
+        pin.isOn = Pinned.isOn
+        pinButton = pin
+        let big = GhostButton(icon: Icon.big, tooltip: """
+            Big mode: as large as fits the screen, centred.
+            Double-click the image to toggle between big and small mode.
+            """) { [weak self] _ in
+            self?.bigMode()
         }
-        // Dimmed while a photo loads; a failed fetch beeps.
-        let photo = GhostButton(icon: Icon.eraser, tooltip: "Replace with a random photo") { [weak self, weak w] b in
-            guard b.iconAlpha == 1 else { return }
-            b.iconAlpha = 0.4
-            RandomPhoto.fetch { photo in
-                b.iconAlpha = 1
-                guard let self, let w, let photo else { NSSound.beep(); return }
-                self.show(image: photo, gif: nil, frame: reshaped(w.frame, for: photo))
-            }
+        let small = GhostButton(icon: Icon.small, tooltip: """
+            Small mode: snap to your small-mode spot (by default, small in the top-right corner).
+            Double-click: save the current position and size as your small-mode spot.
+            Triple-click: reset it to the default.
+            Double-click the image to toggle between big and small mode.
+            """) { [weak self] _ in
+            self?.smallMode()
         }
-        // A: fixed big mode — as large as fits the screen (keeping aspect, bigMargin clear of the edges), centred.
-        let a = GhostButton(icon: nil, label: "A", tooltip: "Big") { [weak w] _ in
-            guard let w, let screen = w.screen ?? NSScreen.main else { return }
-            let area = screen.visibleFrame.insetBy(dx: bigMargin, dy: bigMargin)
-            let bw = min(area.width, area.height * aspect), bh = bw / aspect
-            w.setFrame(NSRect(x: area.midX - bw / 2, y: area.midY - bh / 2, width: bw, height: bh),
-                       display: true, animate: true)
-        }
-        // B: click snaps to the saved frame, or by default small in the top-right corner (longer side
-        // smallFraction of the screen's longer side). Double-click saves, triple-click clears.
-        let b = GhostButton(icon: nil, label: "B",
-                            tooltip: "Click: snap to B. Double-click: save this position. Triple-click: reset.") { [weak w] _ in
-            guard let w, let screen = w.screen ?? NSScreen.main else { return }
-            if let saved = Slots.load("B") {
-                // Keep the saved centre and width; fit the height to this image's aspect ratio.
-                let h = saved.width / aspect
-                w.setFrame(NSRect(x: saved.minX, y: saved.midY - h / 2, width: saved.width, height: h),
-                           display: true, animate: true)
-                return
-            }
-            let area = screen.visibleFrame.insetBy(dx: bigMargin, dy: bigMargin)
-            let long = smallFraction * max(screen.visibleFrame.width, screen.visibleFrame.height)
-            let sw = aspect >= 1 ? long : long * aspect, sh = sw / aspect
-            w.setFrame(NSRect(x: area.maxX - sw, y: area.maxY - sh, width: sw, height: sh),
-                       display: true, animate: true)
-        }
-        b.doubleAction = { [weak w] b in
+        small.doubleAction = { [weak w] b in
             guard let w else { return }
             Slots.save("B", frame: w.frame)
             b.flash(Icon.check)
         }
-        b.tripleAction = { b in
+        small.tripleAction = { b in
             Slots.clear("B")
             b.flash(Icon.check)
         }
-        // Right-to-left from the top-right corner: A B photo copy ghost.
-        for (i, button) in [ghost, copy, photo, b, a].enumerated() {
+        // Right-to-left from the top-right corner: big, small, pin, close.
+        for (i, button) in [close, pin, small, big].enumerated() {
             let x = size.width - buttonInset - CGFloat(i + 1) * buttonSize - CGFloat(i) * 6
             button.frame = NSRect(x: x, y: size.height - buttonSize - buttonInset,
                                   width: buttonSize, height: buttonSize)
@@ -581,6 +646,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         w.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         window = w
+        current = (image, gif)
     }
 
     func notify(_ message: String) {
@@ -595,6 +661,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 let app = NSApplication.shared
 // Accessory: no Cmd+Tab entry, no menu bar takeover. Pin the .app in the Dock to launch it.
 app.setActivationPolicy(.accessory)
+// Dark appearance so tooltips are light text on dark (Floater has no other visible chrome), and a short
+// tooltip delay (ms; the system default is about a second).
+app.appearance = NSAppearance(named: .darkAqua)
+UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 150])
 let delegate = AppDelegate()
 app.delegate = delegate
 app.run()
