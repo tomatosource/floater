@@ -1,9 +1,5 @@
 # Floater
 
-Floats the image (or animated GIF) on your clipboard in a frameless, draggable, resizable,
-always-on-top window. Flip it between a big view and a small one tucked in a corner, pin it across
-desktops, paste new images over it, and let your coding agent float things there too.
-
 ![Floater demo: open an image from the clipboard, move and resize it, big and small mode, paste, pin across desktops, and an agent floating an image](docs/demo.gif)
 
 ## Install
