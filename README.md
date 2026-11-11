@@ -20,7 +20,7 @@ Once you've finished building the new dashboard card, show me a screenshot.
 ```
 
 ```text
-Show me Mookie Betts with his stats from this year.
+This meeting is boring, show me a cute cat GIF.
 ```
 
 ```text
